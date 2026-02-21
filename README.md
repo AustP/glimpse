@@ -133,6 +133,25 @@ const win = open('<html>...</html>', {
 | `clickThrough` | boolean | `false` | Window ignores all mouse events |
 | `followCursor` | boolean | `false` | Track cursor position in real-time |
 | `cursorOffset` | `{ x?, y? }` | `{ x: 20, y: -20 }` | Pixel offset from cursor when `followCursor` is on |
+| `autoClose` | boolean | `false` | Close the window automatically after the first `message` event |
+
+### `prompt(html, options?)`
+
+One-shot helper — opens a window, waits for the first message, then closes it automatically. Returns a `Promise<data | null>` where `data` is the first message payload and `null` means the user closed the window without sending anything.
+
+```js
+import { prompt } from 'glimpse';
+
+const answer = await prompt(`
+  <h2>Delete this file?</h2>
+  <button onclick="window.glimpse.send({ok: true})">Yes</button>
+  <button onclick="window.glimpse.send({ok: false})">No</button>
+`, { width: 300, height: 150, title: 'Confirm' });
+
+if (answer?.ok) console.log('Deleted!');
+```
+
+Accepts the same `options` as `open()`. Optional `options.timeout` (ms) rejects the promise if no message arrives in time.
 
 ### GlimpseWindow
 
@@ -173,6 +192,11 @@ win.followCursor(true);   // attach to cursor
 win.followCursor(false);  // detach
 ```
 
+**`win.loadFile(path)`** — Load a local HTML file into the WebView by absolute path.
+```js
+win.loadFile('/path/to/page.html');
+```
+
 **`win.close()`** — Close the window programmatically.
 ```js
 win.close();
@@ -210,6 +234,11 @@ Glimpse uses a newline-delimited JSON (JSON Lines) protocol. Each line is a comp
 ```json
 {"type":"follow-cursor","enabled":true}
 {"type":"follow-cursor","enabled":false}
+```
+
+**Load File** — Load a local HTML file by absolute path.
+```json
+{"type":"file","path":"/path/to/page.html"}
 ```
 
 **Close** — Close the window and exit.
@@ -262,6 +291,7 @@ Available flags:
 | `--follow-cursor` | off | Track cursor position in real-time |
 | `--cursor-offset-x N` | `20` | Horizontal offset from cursor |
 | `--cursor-offset-y N` | `-20` | Vertical offset from cursor |
+| `--auto-close` | off | Exit after receiving the first message from the page |
 
 **Shell example — encode HTML and pipe it in:**
 ```bash
