@@ -14,9 +14,11 @@ Glimpse opens a native macOS window with a WKWebView in under 50ms. You write HT
 - You want a floating indicator, notification, or companion widget
 - You need the user to interact with rich content
 
-**Install:** The project is at `/Users/haza/Projects/glimpse`. Import from there:
+**Import:** Always use the absolute path to `glimpse.mjs` within the installed package — the bare `'glimpseui'` specifier fails when scripts run from `/tmp` or anywhere without `node_modules`. Resolve `../../src/glimpse.mjs` relative to this skill file's directory:
 ```js
-import { open, prompt } from 'glimpseui';
+import { open, prompt } from '<RESOLVED_PATH>/src/glimpse.mjs';
+// e.g. if this skill is at /usr/lib/.../glimpseui/skills/glimpse/SKILL.md
+// then import from   /usr/lib/.../glimpseui/src/glimpse.mjs
 ```
 
 ---
@@ -25,7 +27,7 @@ import { open, prompt } from 'glimpseui';
 
 ### One-Shot Dialog (prompt)
 ```js
-import { prompt } from 'glimpseui';
+import { prompt } from '<RESOLVED_PATH>/src/glimpse.mjs';
 
 const answer = await prompt(html, {
   width: 400, height: 300,    // window size
@@ -38,7 +40,7 @@ const answer = await prompt(html, {
 
 ### Persistent Window (open)
 ```js
-import { open } from 'glimpseui';
+import { open } from '<RESOLVED_PATH>/src/glimpse.mjs';
 
 const win = open(html, options);
 win.on('ready', (info) => {});       // HTML loaded — info has screen, appearance, cursor
@@ -264,8 +266,6 @@ win.on('ready', () => {
 Use system info to style the UI to match the user's appearance.
 
 ```js
-import { open } from 'glimpseui';
-
 const win = open('', { width: 400, height: 200 });
 
 win.on('ready', ({ appearance, screen }) => {
@@ -478,4 +478,5 @@ Things you can build with Glimpse that you might not have considered (use `win.i
 - **Backdrop blur** (`backdrop-filter: blur(20px)`) makes transparent windows look native and polished
 - **`.send()` accepts any JS** — use it to push live data into the webview (progress, streaming text, state changes)
 - **`prompt()` returns `null`** when the user closes without sending — always handle this case
+- **Be generous with window height** — Content clips without scrollbars if the window is too short. Add 20–30% more height than you think you need. Padding, margins, and button rows add up fast. A form with 2 inputs + buttons needs ~300px minimum, not 200px
 - **Keep windows small** — Glimpse is for focused interactions, not full apps

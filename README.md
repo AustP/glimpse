@@ -417,6 +417,31 @@ To recompile manually at any time:
 npm run build
 ```
 
+## Performance
+
+End-to-end benchmarks measuring the full round-trip: spawn process → open native window → render HTML → JavaScript executes → response back to Node.js. Measured on Apple Silicon (M-series Mac).
+
+### Warm Start (binary pre-compiled)
+
+This is the typical case — the binary is compiled once at install time.
+
+| Run | Time |
+|-----|------|
+| 1st after idle | ~630ms |
+| Subsequent (median of 5) | **~310ms** |
+
+The first invocation after a period of inactivity is slower (~630ms) as macOS loads system frameworks (Cocoa, WebKit) into memory. Subsequent runs settle at **~310ms** — that's spawn, window server, WebKit initialization, HTML render, JS eval, and JSON response over stdout, all in a third of a second.
+
+### Cold Start (compile from source + run)
+
+| Phase | Time |
+|-------|------|
+| `swiftc -O` compilation | ~1,600ms |
+| Window round-trip | ~350ms |
+| **Total** | **~2,000ms** |
+
+Cold start only happens once — during `npm install` (via `postinstall`) or a manual `npm run build`. After that, it's always a warm start.
+
 ## License
 
 MIT

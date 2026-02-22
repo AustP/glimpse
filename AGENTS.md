@@ -50,7 +50,7 @@ Every Mac has `swiftc` — no Xcode project, no Package.swift, no SPM. Single-fi
 ### Test
 
 ```bash
-node test.mjs
+npm test           # or: node test/test.mjs
 ```
 
 End-to-end integration test: open → ready → eval (click button) → message → close → closed. Requires a window server (can't run headless).
@@ -112,7 +112,7 @@ End-to-end integration test: open → ready → eval (click button) → message 
 src/glimpse.swift   — The native binary (THE core)
 src/glimpse.mjs     — Node.js ESM wrapper
 bin/glimpse.mjs     — CLI entry point (npx glimpseui)
-test.mjs            — Integration test
+test/test.mjs       — Integration test
 scripts/publish.sh  — npm publish with preflight checks
 package.json        — NPM config, build/postinstall scripts, pi package manifest
 README.md           — User-facing docs (API, protocol, CLI)
