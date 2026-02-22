@@ -102,6 +102,17 @@ body {
   white-space: nowrap;
 }
 #pill.light .detail { color: rgba(0,0,0,0.6); }
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px 4px 21px;
+  font-size: 9px;
+  font-weight: 400;
+  color: rgba(255,255,255,0.4);
+  font-family: ui-monospace, 'SF Mono', monospace;
+}
+#pill.light .meta { color: rgba(0,0,0,0.35); }
 </style>
 </head>
 <body>
@@ -109,6 +120,8 @@ body {
 <script>
 var _light = false;
 var _rows = {};
+var _startTimes = {};
+var _tickTimer = null;
 
 function setLight(on) {
   _light = on;
@@ -119,9 +132,33 @@ function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
+function fmtElapsed(ms) {
+  var s = Math.floor(ms / 1000);
+  if (s < 60) return s + 's';
+  var m = Math.floor(s / 60);
+  s = s % 60;
+  return m + 'm ' + (s < 10 ? '0' : '') + s + 's';
+}
+
+function startTick() {
+  if (_tickTimer) return;
+  _tickTimer = setInterval(function() {
+    var ids = Object.keys(_rows);
+    if (ids.length === 0) { clearInterval(_tickTimer); _tickTimer = null; return; }
+    for (var i = 0; i < ids.length; i++) {
+      var el = document.getElementById('elapsed-' + ids[i]);
+      if (el && _startTimes[ids[i]]) {
+        el.textContent = fmtElapsed(Date.now() - _startTimes[ids[i]]);
+      }
+    }
+  }, 1000);
+}
+
 function update(id, dotColor, project, status, detail) {
+  if (!_startTimes[id]) _startTimes[id] = Date.now();
   _rows[id] = { dotColor: dotColor, project: project, status: status, detail: detail };
   render();
+  startTick();
 }
 
 function remove(id) {
@@ -129,9 +166,10 @@ function remove(id) {
   var el = document.getElementById('r-' + id);
   if (el) {
     el.style.opacity = '0';
-    setTimeout(function() { delete _rows[id]; render(); }, 350);
+    setTimeout(function() { delete _rows[id]; delete _startTimes[id]; render(); }, 350);
   } else {
     delete _rows[id];
+    delete _startTimes[id];
     render();
   }
 }
@@ -143,7 +181,8 @@ function render() {
   var html = '';
   for (var i = 0; i < ids.length; i++) {
     var r = _rows[ids[i]];
-    html += '<div class="row" id="r-' + ids[i] + '">';
+    html += '<div id="r-' + ids[i] + '">';
+    html += '<div class="row">';
     html += '<div class="dot" style="background:' + r.dotColor + '"></div>';
     html += '<span class="project">' + esc(r.project) + '</span>';
     if (r.status) {
@@ -153,6 +192,12 @@ function render() {
     if (r.detail) {
       html += '<span class="detail">' + esc(r.detail) + '</span>';
     }
+    html += '</div>';
+    // Meta row
+    var elapsed = _startTimes[ids[i]] ? fmtElapsed(Date.now() - _startTimes[ids[i]]) : '';
+    html += '<div class="meta">';
+    html += '<span id="elapsed-' + ids[i] + '">' + elapsed + '</span>';
+    html += '</div>';
     html += '</div>';
   }
   pill.innerHTML = html;
@@ -249,7 +294,7 @@ server.listen(SOCK, () => {
 
 win = open(buildHTML(), {
   width: 1400,
-  height: 120,
+  height: 160,
   frameless: true,
   floating: true,
   transparent: true,
