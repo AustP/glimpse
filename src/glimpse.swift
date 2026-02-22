@@ -84,10 +84,10 @@ func getSystemInfo() -> [String: Any] {
 
 // MARK: - Cursor Anchor
 
-let safeZoneLeft: CGFloat = 24
-let safeZoneRight: CGFloat = 31
-let safeZoneUp: CGFloat = 19
-let safeZoneDown: CGFloat = 43
+let safeZoneLeft: CGFloat = 20
+let safeZoneRight: CGFloat = 27
+let safeZoneUp: CGFloat = 15
+let safeZoneDown: CGFloat = 39
 
 func anchorPosition(mouse: NSPoint, windowSize: NSSize, anchor: String) -> NSPoint? {
     let cx = mouse.x

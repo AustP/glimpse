@@ -56,6 +56,10 @@ body {
   text-rendering: optimizeLegibility;
   font-optical-sizing: auto;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  height: 100vh;
 }
 #pill {
   display: inline-block;
