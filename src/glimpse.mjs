@@ -103,9 +103,10 @@ class GlimpseWindow extends EventEmitter {
     this.#write({ type: 'get-info' });
   }
 
-  followCursor(enabled, anchor) {
+  followCursor(enabled, anchor, mode) {
     const msg = { type: 'follow-cursor', enabled };
     if (anchor !== undefined) msg.anchor = anchor;
+    if (mode !== undefined) msg.mode = mode;
     this.#write(msg);
   }
 }
@@ -135,6 +136,7 @@ export function open(html, options = {}) {
   if (options.cursorOffset?.x != null) args.push('--cursor-offset-x', String(options.cursorOffset.x));
   if (options.cursorOffset?.y != null) args.push('--cursor-offset-y', String(options.cursorOffset.y));
   if (options.cursorAnchor) args.push('--cursor-anchor', options.cursorAnchor);
+  if (options.followMode != null) args.push('--follow-mode', options.followMode);
 
   const proc = spawn(BINARY, args, { stdio: ['pipe', 'pipe', 'inherit'] });
   return new GlimpseWindow(proc, html);

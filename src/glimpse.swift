@@ -133,6 +133,7 @@ struct Config {
     var clickThrough: Bool = false
     var autoClose: Bool = false
     var cursorAnchor: String? = nil
+    var followMode: String = "snap"
 }
 
 func parseArgs() -> Config {
@@ -177,6 +178,9 @@ func parseArgs() -> Config {
         case "--cursor-anchor":
             i += 1
             if i < args.count { config.cursorAnchor = args[i] }
+        case "--follow-mode":
+            i += 1
+            if i < args.count { config.followMode = args[i] }
         default:
             break
         }
@@ -218,9 +222,27 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKScri
     // Cursor anchor — mutable so the follow-cursor protocol command can update it at runtime
     var cursorAnchor: String? = nil
 
+    // Follow mode — mutable so the follow-cursor protocol command can switch at runtime
+    var followMode: String = "snap"
+
     // Mouse monitor references for follow-cursor mode
     var globalMouseMonitor: Any?
     var localMouseMonitor: Any?
+
+    // Spring physics state
+    var springTargetX: CGFloat = 0
+    var springTargetY: CGFloat = 0
+    var springPosX: CGFloat = 0
+    var springPosY: CGFloat = 0
+    var springVelX: CGFloat = 0
+    var springVelY: CGFloat = 0
+    var springTimer: DispatchSourceTimer? = nil
+    var springTimerSuspended: Bool = true
+
+    let springStiffness: CGFloat = 400
+    let springDamping: CGFloat = 28
+    let springDt: CGFloat = 1.0 / 120.0
+    let springSettleThreshold: CGFloat = 0.5
 
     nonisolated init(config: Config) {
         self.config = config
@@ -228,9 +250,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKScri
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         cursorAnchor = config.cursorAnchor
+        followMode = config.followMode
         setupWindow()
         setupWebView()
         if config.followCursor {
+            if followMode == "spring" {
+                // Initialize spring position from the window position set by setupWindow()
+                springPosX = window.frame.origin.x
+                springPosY = window.frame.origin.y
+                let target = computeTargetPosition(mouse: NSEvent.mouseLocation)
+                springTargetX = target.x
+                springTargetY = target.y
+            }
             startFollowingCursor()
         }
         startStdinReader()
@@ -325,21 +356,27 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKScri
 
     // MARK: - Follow Cursor
 
+    func computeTargetPosition(mouse: NSPoint) -> NSPoint {
+        if let anchor = cursorAnchor,
+           let base = anchorPosition(mouse: mouse, windowSize: window.frame.size, anchor: anchor) {
+            return NSPoint(x: base.x + CGFloat(config.cursorOffsetX), y: base.y + CGFloat(config.cursorOffsetY))
+        } else {
+            return NSPoint(x: mouse.x + CGFloat(config.cursorOffsetX), y: mouse.y + CGFloat(config.cursorOffsetY))
+        }
+    }
+
     func startFollowingCursor() {
         guard globalMouseMonitor == nil else { return }
         window.level = .floating
         let moveHandler: (NSEvent) -> Void = { [weak self] _ in
             guard let self else { return }
-            let mouse = NSEvent.mouseLocation
-            if let anchor = self.cursorAnchor,
-               let base = anchorPosition(mouse: mouse, windowSize: self.window.frame.size, anchor: anchor) {
-                let x = base.x + CGFloat(self.config.cursorOffsetX)
-                let y = base.y + CGFloat(self.config.cursorOffsetY)
-                self.window.setFrameOrigin(NSPoint(x: x, y: y))
+            let target = self.computeTargetPosition(mouse: NSEvent.mouseLocation)
+            if self.followMode == "spring" {
+                self.springTargetX = target.x
+                self.springTargetY = target.y
+                self.wakeSpringTimer()
             } else {
-                let x = mouse.x + CGFloat(self.config.cursorOffsetX)
-                let y = mouse.y + CGFloat(self.config.cursorOffsetY)
-                self.window.setFrameOrigin(NSPoint(x: x, y: y))
+                self.window.setFrameOrigin(target)
             }
         }
         globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(
@@ -348,18 +385,60 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKScri
         )
         localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged]) { [weak self] event in
             guard let self else { return event }
-            let mouse = NSEvent.mouseLocation
-            if let anchor = self.cursorAnchor,
-               let base = anchorPosition(mouse: mouse, windowSize: self.window.frame.size, anchor: anchor) {
-                let x = base.x + CGFloat(self.config.cursorOffsetX)
-                let y = base.y + CGFloat(self.config.cursorOffsetY)
-                self.window.setFrameOrigin(NSPoint(x: x, y: y))
+            let target = self.computeTargetPosition(mouse: NSEvent.mouseLocation)
+            if self.followMode == "spring" {
+                self.springTargetX = target.x
+                self.springTargetY = target.y
+                self.wakeSpringTimer()
             } else {
-                let x = mouse.x + CGFloat(self.config.cursorOffsetX)
-                let y = mouse.y + CGFloat(self.config.cursorOffsetY)
-                self.window.setFrameOrigin(NSPoint(x: x, y: y))
+                self.window.setFrameOrigin(target)
             }
             return event
+        }
+    }
+
+    func wakeSpringTimer() {
+        if springTimer == nil {
+            let timer = DispatchSource.makeTimerSource(queue: .main)
+            timer.schedule(deadline: .now(), repeating: .milliseconds(8))
+            timer.setEventHandler { [weak self] in
+                MainActor.assumeIsolated {
+                    self?.springPhysicsStep()
+                }
+            }
+            springTimer = timer
+            springTimerSuspended = true  // newly created timers are suspended
+        }
+        if springTimerSuspended {
+            springTimer!.resume()
+            springTimerSuspended = false
+        }
+    }
+
+    func springPhysicsStep() {
+        let dx = springTargetX - springPosX
+        let dy = springTargetY - springPosY
+        let fx = springStiffness * dx - springDamping * springVelX
+        let fy = springStiffness * dy - springDamping * springVelY
+        springVelX += fx * springDt
+        springVelY += fy * springDt
+        springPosX += springVelX * springDt
+        springPosY += springVelY * springDt
+        window.setFrameOrigin(NSPoint(x: springPosX, y: springPosY))
+
+        // Suspend timer when settled (zero CPU at rest)
+        let dist = (dx * dx + dy * dy).squareRoot()
+        let vel = (springVelX * springVelX + springVelY * springVelY).squareRoot()
+        if dist < springSettleThreshold && vel < springSettleThreshold {
+            springPosX = springTargetX
+            springPosY = springTargetY
+            springVelX = 0
+            springVelY = 0
+            window.setFrameOrigin(NSPoint(x: springPosX, y: springPosY))
+            if !springTimerSuspended {
+                springTimer?.suspend()
+                springTimerSuspended = true
+            }
         }
     }
 
@@ -391,6 +470,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKScri
         if let monitor = localMouseMonitor {
             NSEvent.removeMonitor(monitor)
             localMouseMonitor = nil
+        }
+        // Cancel spring timer — must resume before cancel if suspended
+        if let timer = springTimer {
+            if springTimerSuspended {
+                timer.resume()
+            }
+            timer.cancel()
+            springTimer = nil
+            springTimerSuspended = true
         }
     }
 
@@ -448,6 +536,32 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKScri
                 cursorAnchor = anchor
             } else if json.keys.contains("anchor") {
                 cursorAnchor = nil
+            }
+            if let mode = json["mode"] as? String {
+                let wasSpring = followMode == "spring"
+                followMode = mode
+                if mode == "spring" && !wasSpring {
+                    // Initialize spring position to current window origin and wake timer
+                    springPosX = window.frame.origin.x
+                    springPosY = window.frame.origin.y
+                    springVelX = 0
+                    springVelY = 0
+                    let target = computeTargetPosition(mouse: NSEvent.mouseLocation)
+                    springTargetX = target.x
+                    springTargetY = target.y
+                    if globalMouseMonitor != nil { wakeSpringTimer() }
+                } else if mode == "snap" && wasSpring {
+                    // Snap to target and suspend spring timer
+                    springPosX = springTargetX
+                    springPosY = springTargetY
+                    springVelX = 0
+                    springVelY = 0
+                    window.setFrameOrigin(NSPoint(x: springPosX, y: springPosY))
+                    if let timer = springTimer, !springTimerSuspended {
+                        timer.suspend()
+                        springTimerSuspended = true
+                    }
+                }
             }
             if enabled {
                 startFollowingCursor()
