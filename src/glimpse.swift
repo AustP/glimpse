@@ -430,13 +430,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKScri
             webView.evaluateJavaScript(js, completionHandler: nil)
         case "follow-cursor":
             let enabled = json["enabled"] as? Bool ?? true
-            if let anchor = json["anchor"] as? String {
+            if let anchor = json["anchor"] as? String, !anchor.isEmpty {
                 cursorAnchor = anchor
+            } else if json.keys.contains("anchor") {
+                cursorAnchor = nil
             }
             if enabled {
                 startFollowingCursor()
             } else {
                 stopFollowingCursor()
+            }
+            if let tip = computeCursorTip() {
+                webView.evaluateJavaScript("window.glimpse.cursorTip = {x: \(tip["x"]!), y: \(tip["y"]!)}", completionHandler: nil)
+            } else {
+                webView.evaluateJavaScript("window.glimpse.cursorTip = null", completionHandler: nil)
             }
         case "file":
             guard let path = json["path"] as? String else {
