@@ -1,4 +1,4 @@
-import { open } from 'glimpseui';
+import { open } from '../src/glimpse.mjs';
 import { createServer } from 'node:net';
 import { createInterface } from 'node:readline';
 import { unlinkSync } from 'node:fs';

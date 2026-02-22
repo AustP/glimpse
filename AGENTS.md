@@ -100,6 +100,12 @@ End-to-end integration test: open → ready → eval (click button) → message 
 3. Emit via `this.emit('eventname', ...)`
 4. Document in README.md
 
+### Bumping a Version
+
+1. Bump `version` in `package.json`
+2. Add entry to `CHANGELOG.md` (focus on what matters, not commit noise)
+3. Commit, tag `vX.Y.Z`, push with tags
+
 ## Files
 
 ```
@@ -108,13 +114,13 @@ src/glimpse.mjs     — Node.js ESM wrapper
 bin/glimpse.mjs     — CLI entry point (npx glimpseui)
 test.mjs            — Integration test
 scripts/publish.sh  — npm publish with preflight checks
-package.json        — NPM config, build/postinstall scripts
+package.json        — NPM config, build/postinstall scripts, pi package manifest
 README.md           — User-facing docs (API, protocol, CLI)
 SKILL.md            — Agent skill (patterns, examples, creative ideas)
+CHANGELOG.md        — Release notes
 AGENTS.md           — This file (project conventions for agents)
 .gitignore          — Excludes compiled binary, node_modules
 pi-extension/               — Pi companion extension (cursor-following agent status)
 pi-extension/index.ts       — Extension entry point (/companion command, event tracking)
 pi-extension/companion.mjs  — Standalone companion process (Glimpse window, state polling)
-pi-extension/package.json   — Extension dependencies (glimpseui)
 ```
