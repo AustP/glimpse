@@ -4,7 +4,8 @@ import { basename, join } from "node:path";
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { homedir } from "node:os";
 
 const SOCK = "/tmp/pi-companion.sock";
 const SESSION_ID = randomUUID().slice(0, 8);
@@ -12,9 +13,31 @@ const COMPANION_PATH = join(
   fileURLToPath(new URL(".", import.meta.url)),
   "companion.mjs"
 );
+const SETTINGS_PATH = join(homedir(), ".config", "glimpse", "settings.json");
+
+function loadEnabled(): boolean {
+  try {
+    const data = JSON.parse(readFileSync(SETTINGS_PATH, "utf-8"));
+    return data.companionEnabled !== false;
+  } catch {
+    return true;
+  }
+}
+
+function saveEnabled(value: boolean) {
+  try {
+    let data: any = {};
+    try {
+      data = JSON.parse(readFileSync(SETTINGS_PATH, "utf-8"));
+    } catch {}
+    data.companionEnabled = value;
+    mkdirSync(join(homedir(), ".config", "glimpse"), { recursive: true });
+    writeFileSync(SETTINGS_PATH, JSON.stringify(data, null, 2) + "\n");
+  } catch {}
+}
 
 export default function (pi: ExtensionAPI) {
-  let enabled = true;
+  let enabled = loadEnabled();
   let sock: Socket | null = null;
   let lastStatus = "";
   let lastCtx: any = null;
@@ -91,6 +114,7 @@ export default function (pi: ExtensionAPI) {
 
   async function enable(ctx: any) {
     enabled = true;
+    saveEnabled(true);
     await ensureConnected();
     const theme = ctx.ui.theme;
     ctx.ui.setStatus(
@@ -101,6 +125,7 @@ export default function (pi: ExtensionAPI) {
 
   function disable(ctx: any) {
     enabled = false;
+    saveEnabled(false);
     disconnect();
     ctx.ui.setStatus("companion", undefined);
   }
@@ -108,7 +133,9 @@ export default function (pi: ExtensionAPI) {
   // ── session start ─────────────────────────────────────────────────────────
 
   pi.on("session_start", async (_event, ctx) => {
-    await enable(ctx);
+    if (enabled) {
+      await enable(ctx);
+    }
   });
 
   // ── /companion command ────────────────────────────────────────────────────
