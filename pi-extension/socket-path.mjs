@@ -5,7 +5,7 @@ export function getCompanionSocketPath() {
   if (process.platform === 'win32') {
     return '\\\\.\\pipe\\pi-companion';
   }
-  return join(tmpdir(), 'pi-companion.sock');
+  return join(tmpdir(), 'pi-companion-glimpse-local.sock');
 }
 
 export function usesNamedPipe(socketPath) {

@@ -282,6 +282,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKScri
     // Mouse monitor references for follow-cursor mode
     var globalMouseMonitor: Any?
     var localMouseMonitor: Any?
+    var followPollTimer: DispatchSourceTimer? = nil
+    var followPollTimerSuspended: Bool = true
 
     // Spring physics state
     var springTargetX: CGFloat = 0
@@ -362,6 +364,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKScri
 
     // MARK: - Setup
 
+    private func updateCollectionBehavior(joinAllSpaces: Bool) {
+        var behavior: NSWindow.CollectionBehavior = [.fullScreenAuxiliary]
+        if joinAllSpaces {
+            behavior.insert(.canJoinAllSpaces)
+            behavior.insert(.stationary)
+        } else {
+            behavior.insert(.moveToActiveSpace)
+            behavior.insert(.transient)
+        }
+        window.collectionBehavior = behavior
+    }
+
     private func setupWindow() {
         let rect = NSRect(x: 0, y: 0, width: config.width, height: config.height)
         let styleMask: NSWindow.StyleMask = config.frameless
@@ -374,10 +388,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKScri
             defer: false
         )
         window.title = config.title
+        updateCollectionBehavior(joinAllSpaces: config.followCursor)
         if config.frameless {
             window.isMovableByWindowBackground = true
         }
-        if config.floating || config.followCursor {
+        if config.followCursor || config.clickThrough {
+            window.level = .statusBar
+        } else if config.floating {
             window.level = .floating
         }
         if config.clickThrough {
@@ -412,8 +429,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKScri
         } else if config.clickThrough {
             window.orderFrontRegardless()
         } else {
-            window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
+            window.orderFrontRegardless()
+            window.makeKey()
         }
     }
 
@@ -491,19 +508,42 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKScri
         }
     }
 
+    func updateFollowTarget() {
+        let target = computeTargetPosition(mouse: NSEvent.mouseLocation)
+        if followMode == "spring" {
+            springTargetX = target.x
+            springTargetY = target.y
+            wakeSpringTimer()
+        } else {
+            window.setFrameOrigin(target)
+        }
+    }
+
     func startFollowingCursor() {
         guard globalMouseMonitor == nil else { return }
-        window.level = .floating
+        window.level = .statusBar
+        updateCollectionBehavior(joinAllSpaces: true)
+        updateFollowTarget()
+
+        if followPollTimer == nil {
+            let timer = DispatchSource.makeTimerSource(queue: .main)
+            timer.schedule(deadline: .now(), repeating: .milliseconds(33))
+            timer.setEventHandler { [weak self] in
+                MainActor.assumeIsolated {
+                    self?.updateFollowTarget()
+                }
+            }
+            followPollTimer = timer
+            followPollTimerSuspended = true
+        }
+        if followPollTimerSuspended {
+            followPollTimer?.resume()
+            followPollTimerSuspended = false
+        }
+
         let moveHandler: (NSEvent) -> Void = { [weak self] _ in
             guard let self else { return }
-            let target = self.computeTargetPosition(mouse: NSEvent.mouseLocation)
-            if self.followMode == "spring" {
-                self.springTargetX = target.x
-                self.springTargetY = target.y
-                self.wakeSpringTimer()
-            } else {
-                self.window.setFrameOrigin(target)
-            }
+            self.updateFollowTarget()
         }
         globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(
             matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged],
@@ -511,14 +551,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKScri
         )
         localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged]) { [weak self] event in
             guard let self else { return event }
-            let target = self.computeTargetPosition(mouse: NSEvent.mouseLocation)
-            if self.followMode == "spring" {
-                self.springTargetX = target.x
-                self.springTargetY = target.y
-                self.wakeSpringTimer()
-            } else {
-                self.window.setFrameOrigin(target)
-            }
+            self.updateFollowTarget()
             return event
         }
     }
@@ -589,6 +622,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKScri
     }
 
     func stopFollowingCursor() {
+        updateCollectionBehavior(joinAllSpaces: false)
+        if config.floating {
+            window.level = .floating
+        } else {
+            window.level = .normal
+        }
         if let monitor = globalMouseMonitor {
             NSEvent.removeMonitor(monitor)
             globalMouseMonitor = nil
@@ -596,6 +635,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKScri
         if let monitor = localMouseMonitor {
             NSEvent.removeMonitor(monitor)
             localMouseMonitor = nil
+        }
+        if let timer = followPollTimer {
+            if followPollTimerSuspended {
+                timer.resume()
+            }
+            timer.cancel()
+            followPollTimer = nil
+            followPollTimerSuspended = true
         }
         // Cancel spring timer — must resume before cancel if suspended
         if let timer = springTimer {
@@ -734,12 +781,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKScri
                     window.title = title
                 }
                 hidden = false
-                if !config.clickThrough {
-                    NSApp.setActivationPolicy(.regular)
+                updateCollectionBehavior(joinAllSpaces: config.followCursor || globalMouseMonitor != nil)
+                if config.clickThrough {
+                    window.orderFrontRegardless()
+                } else {
+                    window.orderFrontRegardless()
+                    window.makeKey()
+                    window.makeFirstResponder(webView)
                 }
-                window.makeKeyAndOrderFront(nil)
-                window.makeFirstResponder(webView)
-                NSApp.activate(ignoringOtherApps: true)
             }
         case "title":
             guard let title = json["title"] as? String else {
@@ -812,6 +861,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKScri
                     // Force it back out after every navigation while hidden.
                     window.orderOut(nil)
                 } else {
+                    window.orderFrontRegardless()
                     window.makeFirstResponder(webView)
                 }
             }
@@ -869,5 +919,5 @@ let config = parseArgs()
 let app = NSApplication.shared
 let delegate = AppDelegate(config: config)
 app.delegate = delegate
-app.setActivationPolicy((config.statusItem || config.clickThrough || config.hidden) ? .accessory : .regular)
+app.setActivationPolicy(.accessory)
 app.run()
