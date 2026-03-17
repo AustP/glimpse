@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const BINARY = join(__dirname, 'glimpse');
+const BINARY = process.env.GLIMPSE_BINARY_PATH ?? join(__dirname, 'glimpse');
 
 class GlimpseWindow extends EventEmitter {
   #proc;
@@ -136,6 +136,8 @@ export function open(html, options = {}) {
   if (options.followCursor) args.push('--follow-cursor');
   if (options.hidden)      args.push('--hidden');
   if (options.autoClose)   args.push('--auto-close');
+  if (options.openLinks)   args.push('--open-links');
+  if (options.openLinksApp) args.push('--open-links-app', options.openLinksApp);
 
   if (options.x != null) args.push('--x', String(options.x));
   if (options.y != null) args.push('--y', String(options.y));

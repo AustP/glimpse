@@ -28,6 +28,8 @@ for (let i = 0; i < args.length; i++) {
   else if (arg === '--cursor-offset-y' && args[i + 1]) { flags.cursorOffset = { ...flags.cursorOffset, y: parseInt(args[++i]) }; }
   else if (arg === '--cursor-anchor' && args[i + 1]) { flags.cursorAnchor = args[++i]; }
   else if (arg === '--follow-mode' && args[i + 1]) { flags.followMode = args[++i]; }
+  else if (arg === '--open-links') { flags.openLinks = true; }
+  else if (arg === '--open-links-app' && args[i + 1]) { flags.openLinks = true; flags.openLinksApp = args[++i]; }
   else if (!arg.startsWith('-')) { positional.push(arg); }
   else { console.error(`Unknown flag: ${arg}`); process.exit(1); }
 }
@@ -54,6 +56,8 @@ Options:
   --cursor-anchor <pos>  Snap point: top-left, top-right, right, bottom-right, bottom-left, left
   --cursor-offset-x <n>  Cursor X offset (default: 20)
   --cursor-offset-y <n>  Cursor Y offset (default: -20)
+  --open-links          Open http/https links in default browser
+  --open-links-app <app> Open http/https links in a specific browser app (full path)
   --auto-close         Close after first window.glimpse.send()
   --x <n>              Window X position
   --y <n>              Window Y position

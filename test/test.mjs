@@ -41,7 +41,12 @@ console.log('glimpse integration test\n');
 let win;
 try {
   // Step 1: Open window
-  win = open(HTML, { title: 'Glimpse Test', width: 400, height: 300 });
+  win = open(HTML, {
+    title: 'Glimpse Test',
+    width: 400,
+    height: 300,
+    openLinks: true,
+  });
   pass('Window opened');
 
   // Step 2: Wait for ready (open() internally sets HTML on ready, then emits ready to us)

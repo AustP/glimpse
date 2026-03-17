@@ -172,6 +172,8 @@ const win = open('<html>...</html>', {
 | `followMode` | string | `"snap"` | Follow animation mode: `snap` (instant) or `spring` (iOS-style elastic with overshoot) |
 | `cursorAnchor` | string | `null` | Snap point around cursor: `top-left`, `top-right`, `right`, `bottom-right`, `bottom-left`, `left`. Positions window with a safe zone gap; overrides raw offset positioning. |
 | `cursorOffset` | `{ x?, y? }` | `{ x: 20, y: -20 }` | Pixel offset from cursor (or fine-tuning on top of `cursorAnchor`) |
+| `openLinks` | boolean | `false` | Open clicked `http`/`https` links in the system browser instead of inside Glimpse |
+| `openLinksApp` | string | `null` | Full path to an app bundle to open links with (for example `"/Applications/Google Chrome.app"`) |
 | `hidden` | boolean | `false` | Start the window hidden (prewarm mode) — load HTML in the background, then reveal with `win.show()` |
 | `autoClose` | boolean | `false` | Close the window automatically after the first `message` event |
 
@@ -384,6 +386,8 @@ Available flags:
 | `--cursor-anchor <position>` | — | Snap point around cursor: `top-left`, `top-right`, `right`, `bottom-right`, `bottom-left`, `left` |
 | `--cursor-offset-x N` | `20` | Horizontal offset from cursor (or fine-tuning on top of `--cursor-anchor`) |
 | `--cursor-offset-y N` | `-20` | Vertical offset from cursor (or fine-tuning on top of `--cursor-anchor`) |
+| `--open-links` | off | Open clicked `http`/`https` links in the system default browser |
+| `--open-links-app <path>` | — | Open clicked `http`/`https` links in a specific browser app by full path (for example `"/Applications/Google Chrome.app"`) |
 | `--hidden` | off | Start the window hidden (prewarm mode) — load HTML in background, reveal with `show` command |
 | `--auto-close` | off | Exit after receiving the first message from the page |
 
