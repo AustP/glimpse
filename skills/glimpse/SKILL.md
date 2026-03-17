@@ -67,6 +67,8 @@ win.close();                         // close window
   followMode: 'spring',  // 'snap' (instant, default) or 'spring' (elastic)
   cursorAnchor: 'top-right', // snap point: top-left, top-right, right, bottom-right, bottom-left, left
   cursorOffset: {x, y},   // offset from cursor (default: 20, -20)
+  openLinks: true,        // open clicked http/https links in default browser
+  openLinksApp: '/Applications/Google Chrome.app', // optional app bundle path
   autoClose: true,        // close after first message
   x, y,                   // exact screen position
   timeout,                // for prompt() only — ms before rejecting

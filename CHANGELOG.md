@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Feature**: Add `openLinks` / `openLinksApp` support so clicked `http`/`https` links in Glimpse can be opened in the system browser or a specific app path.
+
 ## 0.3.7
 
 Companion remembers your preference — disable it once and it stays off across sessions.

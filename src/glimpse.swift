@@ -135,6 +135,8 @@ struct Config {
     var autoClose: Bool = false
     var cursorAnchor: String? = nil
     var followMode: String = "snap"
+    var openLinks: Bool = false
+    var openLinksApp: String? = nil
 }
 
 func parseArgs() -> Config {
@@ -184,6 +186,14 @@ func parseArgs() -> Config {
         case "--follow-mode":
             i += 1
             if i < args.count { config.followMode = args[i] }
+        case "--open-links":
+            config.openLinks = true
+        case "--open-links-app":
+            i += 1
+            if i < args.count {
+                config.openLinks = true
+                config.openLinksApp = args[i]
+            }
         default:
             break
         }
@@ -249,6 +259,35 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKScri
     let springDamping: CGFloat = 28
     let springDt: CGFloat = 1.0 / 120.0
     let springSettleThreshold: CGFloat = 0.5
+
+    private func openURLInBrowser(_ url: URL) {
+        guard config.openLinks else { return }
+
+        if let appPath = config.openLinksApp {
+            let appURL = URL(fileURLWithPath: appPath)
+            guard FileManager.default.fileExists(atPath: appPath) else {
+                log("open-links-app: app path not found: \(appPath)")
+                _ = NSWorkspace.shared.open(url)
+                return
+            }
+
+            let openConfig = NSWorkspace.OpenConfiguration()
+            NSWorkspace.shared.open(
+                [url],
+                withApplicationAt: appURL,
+                configuration: openConfig
+            ) { _, error in
+                if let error {
+                    log("open-links-app: failed to open \(url.absoluteString) in \(appPath): \(error.localizedDescription)")
+                    _ = NSWorkspace.shared.open(url)
+                }
+            }
+        } else {
+            if !NSWorkspace.shared.open(url) {
+                log("open-links: failed to open \(url.absoluteString) in default browser")
+            }
+        }
+    }
 
     nonisolated init(config: Config) {
         self.config = config
@@ -626,6 +665,31 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKScri
     }
 
     // MARK: - WKNavigationDelegate
+
+    nonisolated func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        MainActor.assumeIsolated {
+            guard self.config.openLinks else {
+                decisionHandler(.allow)
+                return
+            }
+
+            guard navigationAction.navigationType == .linkActivated else {
+                decisionHandler(.allow)
+                return
+            }
+
+            guard let url = navigationAction.request.url,
+                  let scheme = url.scheme?.lowercased(),
+                  scheme == "http" || scheme == "https"
+            else {
+                decisionHandler(.allow)
+                return
+            }
+
+            openURLInBrowser(url)
+            decisionHandler(.cancel)
+        }
+    }
 
     nonisolated func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         MainActor.assumeIsolated {
