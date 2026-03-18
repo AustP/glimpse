@@ -1,11 +1,11 @@
 ---
 name: glimpse
-description: Show native macOS UI from scripts and agents — dialogs, forms, visualizations, floating widgets, cursor companions. Use when you need to display HTML to the user, collect input, show a chart, render markdown, or create any visual interaction without a browser.
+description: Show native UI from scripts and agents — dialogs, forms, visualizations, floating widgets, cursor companions. Supports macOS, Linux, and Windows. Use when you need to display HTML to the user, collect input, show a chart, render markdown, or create any visual interaction without a browser.
 ---
 
-# Glimpse — Native macOS Micro-UI
+# Glimpse — Native Micro-UI
 
-Glimpse opens a native macOS window with a WKWebView in under 50ms. You write HTML, the user sees it instantly. Bidirectional communication via `window.glimpse.send()` (webview → Node) and `.send(js)` (Node → webview).
+Glimpse opens a native window with a webview in under 50ms. You write HTML, the user sees it instantly. Bidirectional communication via `window.glimpse.send()` (webview → Node) and `.send(js)` (Node → webview). Works on macOS (WKWebView), Linux (WebKitGTK), and Windows (WebView2).
 
 **When to use Glimpse:**
 - You need user input beyond yes/no (forms, selections, text input)
@@ -14,11 +14,17 @@ Glimpse opens a native macOS window with a WKWebView in under 50ms. You write HT
 - You want a floating indicator, notification, or companion widget
 - You need the user to interact with rich content
 
-**Import:** Always use the absolute path to `glimpse.mjs` within the installed package — the bare `'glimpseui'` specifier fails when scripts run from `/tmp` or anywhere without `node_modules`. Resolve `../../src/glimpse.mjs` relative to this skill file's directory:
+**Import:** Always use the absolute path to `glimpse.mjs` within the installed package — the bare `'glimpseui'` specifier fails when scripts run from `/tmp` or anywhere without `node_modules`. Resolve `../../src/glimpse.mjs` relative to this skill file's directory.
+
+On **macOS/Linux**, use a direct path:
 ```js
 import { open, prompt } from '<RESOLVED_PATH>/src/glimpse.mjs';
-// e.g. if this skill is at /usr/lib/.../glimpseui/skills/glimpse/SKILL.md
-// then import from   /usr/lib/.../glimpseui/src/glimpse.mjs
+```
+
+On **Windows**, ESM imports require a `file:///` URL:
+```js
+import { open, prompt } from 'file:///<RESOLVED_PATH>/src/glimpse.mjs';
+// e.g. import { open, prompt } from 'file:///C:/Users/me/.pi/agent/.../glimpseui/src/glimpse.mjs';
 ```
 
 ---
@@ -482,3 +488,9 @@ Things you can build with Glimpse that you might not have considered (use `win.i
 - **`prompt()` returns `null`** when the user closes without sending — always handle this case
 - **Be generous with window height** — Content clips without scrollbars if the window is too short. Add 20–30% more height than you think you need. Padding, margins, and button rows add up fast. A form with 2 inputs + buttons needs ~300px minimum, not 200px
 - **Keep windows small** — Glimpse is for focused interactions, not full apps
+
+### Windows-Specific Tips
+
+- **Use `file:///` for ESM imports** — On Windows, Node.js ESM requires `file:///C:/...` URLs for absolute paths. Bare paths like `C:/...` fail with `ERR_UNSUPPORTED_ESM_URL_SCHEME`
+- **Use `addEventListener` instead of inline `onclick`** — Inline event handlers (`onclick="..."`) can be unreliable in WebView2. Always use `document.getElementById('x').addEventListener('click', fn)` instead
+- **Use `floating: true` for sequential prompts** — When opening multiple `prompt()` calls in sequence, subsequent windows may appear behind other windows. Setting `floating: true` ensures they stay on top

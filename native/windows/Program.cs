@@ -124,14 +124,14 @@ sealed class GlimpseHost : IDisposable
     private async Task InitializeAsync()
     {
         await _webView.EnsureCoreWebView2Async();
-        _webView.CoreWebView2.WebMessageReceived += (_, args) => HandleWebMessage(args.TryGetWebMessageAsString());
+        _webView.CoreWebView2.WebMessageReceived += (_, args) => HandleWebMessage(args.WebMessageAsJson);
         await _webView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(@"window.glimpse = {
     cursorTip: null,
     send: function(data) {
-        window.chrome.webview.postMessage(JSON.stringify(data));
+        window.chrome.webview.postMessage({ __glimpse_msg: true, data: data });
     },
     close: function() {
-        window.chrome.webview.postMessage(JSON.stringify({ __glimpse_close: true }));
+        window.chrome.webview.postMessage({ __glimpse_close: true });
     }
 };");
         _webView.NavigationCompleted += (_, _) =>
@@ -311,11 +311,25 @@ sealed class GlimpseHost : IDisposable
                 return;
             }
 
-            WriteJson(new
+            // Unwrap the envelope: { __glimpse_msg: true, data: <actual payload> }
+            if (json.RootElement.TryGetProperty("__glimpse_msg", out _) &&
+                json.RootElement.TryGetProperty("data", out var dataNode))
             {
-                type = "message",
-                data = JsonSerializer.Deserialize<object>(message)
-            });
+                WriteJson(new
+                {
+                    type = "message",
+                    data = JsonSerializer.Deserialize<object>(dataNode.GetRawText())
+                });
+            }
+            else
+            {
+                // Legacy / direct format — pass through as-is
+                WriteJson(new
+                {
+                    type = "message",
+                    data = JsonSerializer.Deserialize<object>(message)
+                });
+            }
 
             if (_config.AutoClose)
             {
@@ -572,12 +586,21 @@ sealed class GlimpseHost : IDisposable
         if (_closed) return;
         _closed = true;
         WriteJson(new { type = "closed" });
+        Console.Out.Flush();
         _cursorTimer.Stop();
         if (!Form.IsDisposed)
         {
             Form.Close();
         }
-        Environment.Exit(0);
+        // Give the pipe time to drain to the Node reader before exiting.
+        // Application.Exit() alone won't terminate because the stdin
+        // reader thread blocks the process.
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(100);
+            Environment.Exit(0);
+        });
+        Application.Exit();
     }
 
     public void Dispose()

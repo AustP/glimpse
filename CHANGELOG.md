@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.5.1
+
+### Windows Fixes
+
+Three bugs that made the Windows WebView2 host unreliable in practice:
+
+- **Fix: `window.glimpse.send()` silently failed for non-object values** — Sending a plain string, number, or boolean (e.g. `send('hello world')`) was silently swallowed. The JS bridge used `JSON.stringify(data)` + `postMessage(string)`, but WebView2's `TryGetWebMessageAsString` stripped the JSON encoding, making the C# side unable to parse it. The bridge now wraps all payloads in an envelope object (`{ __glimpse_msg: true, data }`) so `postMessage` always sends an object regardless of the user's data type.
+
+- **Fix: `prompt()` pipe race with `autoClose`** — `CloseOnce()` called `Environment.Exit(0)` immediately after writing the "closed" message, which could kill the process before Node read the pipe. Now uses `Application.Exit()` for graceful form shutdown with a 100ms delayed `Environment.Exit(0)` fallback (needed because the stdin reader thread blocks process termination).
+
+- **Fix: .NET version compatibility** — Added `<RollForward>LatestMajor</RollForward>` to the csproj so the binary runs on .NET 9+ without requiring .NET 8 to be installed.
+
+### Skill
+
+- Updated SKILL.md to reflect cross-platform support (was macOS-only language)
+- Added Windows-specific tips: `file:///` ESM imports, `addEventListener` over inline handlers, `floating: true` for sequential prompts
+
 ## 0.5.0
 
 ### Cross-Platform Support
